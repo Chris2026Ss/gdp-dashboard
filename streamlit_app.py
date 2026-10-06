@@ -1,72 +1,225 @@
 import streamlit as st
 import pandas as pd
-import math
+import plotly.express as px
 from pathlib import Path
 
-st.set_page_config(page_title='JunubLink AI Portal', page_icon=':earth_africa:', layout='wide')
+# Configure page
+st.set_page_config(
+    page_title='JunubLink AI Portal',
+    page_icon=':earth_africa:',
+    layout='wide',
+    initial_sidebar_state='collapsed'
+)
 
 # HEADER
 st.title("JunubLink AI - Africa Youth Tech Education Innovation")
 st.markdown("**Munuki Hub, Juba | JunubLink-AI@gmail.com | GDP + Scholarships + Scam Alert**")
 st.divider()
 
+# Create tabs
 tab1, tab2, tab3 = st.tabs(["📈 GDP Dashboard", "🎓 Real Scholarships", "🚨 Scam Alert"])
 
-@st.cache_data
+# ============================================================================
+# GDP DATA FUNCTION
+# ============================================================================
+
+@st.cache_data(ttl=3600)
 def get_gdp_data():
+    """Load GDP data from CSV or return demo fallback data."""
     csv_path = Path(__file__).parent / "data" / "gdp_data.csv"
-    if csv_path.exists():
-        return pd.read_csv(csv_path)
-    # fallback demo data if no csv
-    data = {
-        'Country Code': ['SSD','KEN','UGA','ETH','SDN','RWA']*5,
-        'Year': [2018,2018,2018,2018,2018,2018,2019,2019,2019,2019,2019,2019,2020,2020,2020,2020,2020,2020,2021,2021,2021,2021,2021,2021,2022,2022,2022,2022,2022,2022],
-        'GDP (current US$)': [2.5e9, 9e10, 3.2e10, 8e10, 3e10, 1e10]*5
-    }
-    return pd.DataFrame(data)
+    
+    try:
+        if csv_path.exists():
+            df = pd.read_csv(csv_path)
+            if not df.empty:
+                return df
+    except Exception as e:
+        st.warning(f"Could not load CSV: {e}. Using demo data.")
+    
+    # Fallback demo data for East Africa
+    return pd.DataFrame({
+        'Country Code': ['SSD', 'KEN', 'UGA', 'ETH', 'SDN', 'RWA'] * 5,
+        'Year': [2018]*6 + [2019]*6 + [2020]*6 + [2021]*6 + [2022]*6,
+        'GDP (current US$)': [2.5e9, 9e10, 3.2e10, 8e10, 3e10, 1e10] * 5,
+        'Country Name': ['South Sudan', 'Kenya', 'Uganda', 'Ethiopia', 'Sudan', 'Rwanda'] * 5
+    })
+
+# ============================================================================
+# TAB 1: GDP DASHBOARD
+# ============================================================================
 
 with tab1:
     st.header("East Africa GDP – Live Data")
-    df = get_gdp_data()
-    countries = st.multiselect("Select Countries", df['Country Code'].unique().tolist() if 'Country Code' in df.columns else ["SSD","KEN","UGA","ETH","SDN","RWA"], default=["SSD","KEN","UGA","ETH","RWA"])
+    
     try:
-        import plotly.express as px
-        filt = df[df['Country Code'].isin(countries)] if 'Country Code' in df.columns else df
-        y_col = 'GDP (current US$)' if 'GDP (current US$)' in filt.columns else filt.columns[-1]
-        x_col = 'Year' if 'Year' in filt.columns else filt.columns[1]
-        fig = px.line(filt, x=x_col, y=y_col, color='Country Code' if 'Country Code' in filt.columns else None, markers=True)
-        st.plotly_chart(fig, use_container_width=True)
-    except:
-        st.line_chart(df)
-    st.dataframe(df, use_container_width=True)
+        df = get_gdp_data()
+        
+        if df.empty:
+            st.error("No GDP data available.")
+        else:
+            # Get unique countries
+            countries = sorted(df['Country Code'].unique().tolist())
+            default_countries = [c for c in ['SSD', 'KEN', 'UGA', 'ETH', 'RWA'] if c in countries]
+            
+            # Country selector
+            selected_countries = st.multiselect(
+                "Select Countries",
+                countries,
+                default=default_countries if default_countries else countries[:3]
+            )
+            
+            if selected_countries:
+                # Filter data
+                filtered_df = df[df['Country Code'].isin(selected_countries)].copy()
+                
+                # Plot using Plotly
+                try:
+                    fig = px.line(
+                        filtered_df,
+                        x='Year',
+                        y='GDP (current US$)',
+                        color='Country Code',
+                        markers=True,
+                        title="GDP Trends (Current US$)",
+                        labels={'GDP (current US$)': 'GDP (US$)'}
+                    )
+                    fig.update_layout(height=500)
+                    st.plotly_chart(fig, use_container_width=True)
+                except Exception as e:
+                    st.error(f"Could not create chart: {e}")
+                
+                # Data table
+                st.subheader("Data Table")
+                st.dataframe(filtered_df, use_container_width=True)
+            else:
+                st.info("Please select at least one country.")
+    
+    except Exception as e:
+        st.error(f"Error loading GDP dashboard: {e}")
+
+# ============================================================================
+# TAB 2: SCHOLARSHIPS
+# ============================================================================
 
 with tab2:
     st.header("Verified Scholarships – FREE, No Payment")
-    st.success("Contact us: JunubLink-AI@gmail.com to add more")
-    sch = pd.DataFrame([
-        {"Name":"Mastercard Foundation","Level":"Undergrad/Masters","Link":"mastercardfdn.org/scholars","Fee":"FREE"},
-        {"Name":"Chevening UK","Level":"Masters","Link":"chevening.org","Fee":"FREE"},
-        {"Name":"DAAD Germany","Level":"Masters/PhD","Link":"daad.de","Fee":"FREE"},
-        {"Name":"World Bank JJ/WBGSP","Level":"Masters","Link":"worldbank.org/scholarships","Fee":"FREE"},
-        {"Name":"African Union","Level":"Masters","Link":"au.int/scholarship","Fee":"FREE"},
-    ])
-    st.dataframe(sch, use_container_width=True)
-    st.info("Real scholarships NEVER ask for $50-$500 fee!")
+    st.success("✅ Contact us: JunubLink-AI@gmail.com to add more scholarships")
+    
+    try:
+        scholarships = pd.DataFrame([
+            {
+                "Name": "Mastercard Foundation",
+                "Level": "Undergrad/Masters",
+                "Website": "mastercardfdn.org/scholars",
+                "Fee": "FREE"
+            },
+            {
+                "Name": "Chevening (UK Government)",
+                "Level": "Masters",
+                "Website": "chevening.org",
+                "Fee": "FREE"
+            },
+            {
+                "Name": "DAAD (Germany)",
+                "Level": "Masters/PhD",
+                "Website": "daad.de",
+                "Fee": "FREE"
+            },
+            {
+                "Name": "World Bank Scholarships",
+                "Level": "Masters",
+                "Website": "worldbank.org/scholarships",
+                "Fee": "FREE"
+            },
+            {
+                "Name": "African Union",
+                "Level": "Masters/PhD",
+                "Website": "au.int/scholarship",
+                "Fee": "FREE"
+            },
+        ])
+        
+        st.dataframe(scholarships, use_container_width=True)
+        st.info("⚠️ Real scholarships NEVER ask for $50–$500 application fees!")
+    
+    except Exception as e:
+        st.error(f"Error loading scholarships: {e}")
+
+# ============================================================================
+# TAB 3: SCAM ALERT
+# ============================================================================
 
 with tab3:
     st.header("Scholarship Scam Alert – Protecting Juba Youth")
-    st.error("Fake scholarships on Facebook/WhatsApp are stealing money in South Sudan!")
-    c1,c2 = st.columns(2)
-    with c1:
-        st.markdown("**❌ SCAM Signs:**\n- Asks for application fee\n- Gmail only: canada2025@gmail.com\n- Guaranteed visa\n- Pay today or lose spot")
-    with c2:
-        st.markdown("**✅ REAL Signs:**\n- FREE application\n- .edu/.gov/.org website\n- No money asked\n- Past winners listed")
-    check = st.text_input("Paste scholarship link to check:")
-    if check:
-        if "gmail" in check.lower() or "whatsapp" in check.lower() or "fee" in check.lower():
-            st.error("🚨 LIKELY SCAM – Report to JunubLink-AI@gmail.com")
-        else:
-            st.warning("Verify on official site. Ask us!")
+    st.error("🚨 Fake scholarships on Facebook/WhatsApp are stealing money in South Sudan!")
+    
+    try:
+        # Two-column comparison
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            st.markdown(
+                """**❌ RED FLAGS – SCAM SIGNS:**
+- Asks for application/processing fee ($50–$500)
+- Uses Gmail/free email only (canada2025@gmail.com, uk_scholarship@gmail.com)
+- Guarantees visa or acceptance
+- "Pay today or lose your spot" pressure
+- No official website or LinkedIn verification
+- Broken English, poor grammar
+"""
+            )
+        
+        with c2:
+            st.markdown(
+                """**✅ GREEN LIGHTS – REAL SIGNS:**
+- Completely FREE application
+- Official .edu, .gov, or .org website
+- No money requested at any stage
+- Past winners listed on website
+- Professional communication
+- Verifiable on LinkedIn & official channels
+- Transparent selection process
+"""
+            )
+        
+        st.divider()
+        
+        # Scam checker
+        st.subheader("Quick Scam Check")
+        check_url = st.text_input(
+            "Paste a scholarship link or email to check:",
+            placeholder="e.g., canada2025@gmail.com or https://example-scholarship.com"
+        )
+        
+        if check_url:
+            is_likely_scam = any(
+                keyword in check_url.lower()
+                for keyword in ['gmail.com', 'yahoo.com', 'hotmail.com', 'whatsapp', 'fee', 'pay now', 'deposit']
+            )
+            
+            if is_likely_scam:
+                st.error(
+                    "🚨 **LIKELY SCAM** – Report this to:\n"
+                    "- JunubLink-AI@gmail.com\n"
+                    "- Facebook Scam Reporting\n"
+                    "- Local authorities"
+                )
+            else:
+                st.warning(
+                    "⚠️ Verify on the official website. Ask us if unsure!\n"
+                    "Email: JunubLink-AI@gmail.com"
+                )
+    
+    except Exception as e:
+        st.error(f"Error loading Scam Alert: {e}")
+
+# ============================================================================
+# FOOTER
+# ============================================================================
 
 st.divider()
-st.markdown("Built by Chris2026Ss | Munuki Hub, Juba | **JunubLink-AI@gmail.com** | Live Dashboard: gdp-dashboard-h5k54ilfh5fwpk4ucnk69q.streamlit.app")
+st.markdown(
+    "Built by Chris2026Ss | Munuki Hub, Juba | "
+    "**JunubLink-AI@gmail.com** | "
+    "[Live Dashboard](https://gdp-dashboard-h5k54ilfh5fwpk4ucnk69q.streamlit.app)"
+)
